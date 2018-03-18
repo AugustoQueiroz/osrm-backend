@@ -1,3 +1,8 @@
+-- "imports"
+local cjson = require "cjson"
+local cjson2 = cjson.new()
+local cjson_safe = require "cjson.safe"
+
 -- Bicycle profile
 
 api_version = 2
@@ -16,10 +21,10 @@ function setup()
     properties = {
       u_turn_penalty                = 20,
       traffic_light_penalty         = 2,
-      --weight_name                   = 'cyclability',
-      weight_name                   = 'duration',
+      weight_name                   = 'cyclability',
+      --weight_name                   = 'duration',
       process_call_tagless_node     = false,
-      max_speed_for_map_matching    = 110/3.6, -- kmph -> m/s
+      max_speed_for_map_matching    = 60/3.6, -- kmph -> m/s
       use_turn_restrictions         = false,
       continue_straight_at_waypoint = false
     },
@@ -29,8 +34,8 @@ function setup()
     walking_speed             = walking_speed,
     oneway_handling           = true,
     turn_penalty              = 6,
-    turn_bias                 = 1.4,
-    use_public_transport      = true,
+    turn_bias                 = 2,
+    use_public_transport      = false, -- Queremos focar apenas em rotas 100% de bike (?) (Em recife não rola de levar a bike pra dentro do transporte público)
 
     allowed_start_modes = Set {
       mode.cycling,
@@ -471,6 +476,11 @@ function handle_bicycle_tags(profile,way,result,data)
 
   -- convert duration into cyclability
   if profile.properties.weight_name == 'cyclability' then
+  	  local pesos_file = assert(io.open("pesos.json", "r"))
+  	  local pesos_json = cjson.decode(pesos_file:read("*all"))
+
+  	  local data_penalty = pesos_json[way:get_value_by_key("name")] or 0
+
       local safety_penalty = profile.unsafe_highway_list[data.highway] or 1.
       local is_unsafe = safety_penalty < 1
       local forward_is_unsafe = is_unsafe and not has_cycleway_right
@@ -499,7 +509,7 @@ function handle_bicycle_tags(profile,way,result,data)
         result.backward_rate = result.backward_speed / 3.6 * backward_penalty
       end
       if result.duration > 0 then
-        result.weight = result.duration / forward_penalty
+        result.weight = (result.duration / forward_penalty) + data_penalty
       end
   end
 end
